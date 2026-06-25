@@ -4,22 +4,44 @@ from io import BytesIO
 from reportlab.lib.pagesizes import letter
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+import re
 
 
 def scan_and_sanitize_pdf(uploaded_file, size_threshold=2.0):
     """
-    Scans the PDF for anomalies and simultaneously extracts a
-    clean text stream free of micro-text and hidden colors.
+    Scans the PDF for visual anomalies (micro-text, hidden colors)
+    AND structural hyperlinked threat vectors.
     """
     anomalies = []
     clean_lines = []
-    stats = {"total_chars": 0, "page_count": 0, "avg_font_size": 0.0}
+    stats = {"total_chars": 0, "page_count": 0, "avg_font_size": 0.0, "total_links": 0}
     font_sizes = []
 
     with pdfplumber.open(uploaded_file) as pdf:
         stats["page_count"] = len(pdf.pages)
 
         for page_num, page in enumerate(pdf.pages, 1):
+            # --- 1. HYPERLINK ANOMALY DETECTION ---
+            hyperlinks = page.hyperlinks
+            if hyperlinks:
+                stats["total_links"] += len(hyperlinks)
+                for link in hyperlinks:
+                    url = link.get('uri', '')
+                    # Extract the text roughly bounding the link region if available
+                    bbox = [link.get('x0', 0), link.get('top', 0), link.get('x1', 0), link.get('bottom', 0)]
+
+                    # Flag suspicious URL traits (e.g., ip addresses, tracking scripts, redirect chains)
+                    is_suspicious_url = any(
+                        x in url.lower() for x in ["http://", "bit.ly", "tinyurl", "redirect", "malicious"])
+
+                    if is_suspicious_url:
+                        anomalies.append({
+                            "page": page_num,
+                            "reason": "Suspicious / Malicious Hyperlink Gateway",
+                            "text": f"Target URL: {url}"
+                        })
+
+            # --- 2. VISUAL OBFUSCATION DETECTION ---
             chars = page.chars
             if not chars:
                 continue
@@ -28,8 +50,6 @@ def scan_and_sanitize_pdf(uploaded_file, size_threshold=2.0):
             current_hidden_phrase = []
             trigger_reason = ""
 
-            # Group characters by text blocks or lines naturally
-            # To extract clean text layout cleanly, we'll extract normal text chunks
             text_lines = page.extract_text().split('\n') if page.extract_text() else []
 
             for char in chars:
@@ -66,19 +86,16 @@ def scan_and_sanitize_pdf(uploaded_file, size_threshold=2.0):
                             })
                         current_hidden_phrase = []
 
-            # Catch trailing threats
             if current_hidden_phrase:
                 full_phrase = "".join(current_hidden_phrase).strip()
                 if len(full_phrase) > 2:
                     anomalies.append({"page": page_num, "reason": trigger_reason, "text": full_phrase})
 
-            # Reconstruct clean data lines by omitting lines matching the threat phrase
+            # Reconstruct clean text layout lines
             for line in text_lines:
-                # If the line contains a flagged anomaly, skip it from the clean export!
                 if any(threat['text'] in line for threat in anomalies):
                     continue
-                if line.strip() and line.strip() not in [t['text'] for t in anomalies]:
-                    clean_lines.append(line.strip())
+                clean_lines.append(line.strip())
 
     if font_sizes:
         stats["avg_font_size"] = sum(font_sizes) / len(font_sizes)
@@ -88,25 +105,27 @@ def scan_and_sanitize_pdf(uploaded_file, size_threshold=2.0):
 
 def generate_patched_pdf(clean_lines):
     """
-    Compiles the sanitized text back into a clean, downloadable PDF file structure.
+    Compiles the sanitized text back into a clean PDF structure,
+    forcing text to ALWAYS be black to avoid Dark Mode contrast glitches.
     """
     pdf_buffer = BytesIO()
     doc = SimpleDocTemplate(pdf_buffer, pagesize=letter, rightMargin=40, leftMargin=40, topMargin=40, bottomMargin=40)
     styles = getSampleStyleSheet()
 
-    # Custom styles to maintain a nice readable structure
+    # FIX: Explicitly forcing text to #000000 (Black) so it opens perfectly in standard PDF viewers
     normal_style = ParagraphStyle(
         'CleanText',
         parent=styles['Normal'],
         fontSize=10,
         leading=14,
-        textColor='#FFFFFF' if st.get_option("theme.base") == "dark" else '#000000'
+        textColor='#000000'
     )
 
     story = []
     for line in clean_lines:
-        story.append(Paragraph(line, normal_style))
-        story.append(Spacer(1, 6))
+        if line:
+            story.append(Paragraph(line, normal_style))
+            story.append(Spacer(1, 6))
 
     doc.build(story)
     pdf_buffer.seek(0)
@@ -116,15 +135,14 @@ def generate_patched_pdf(clean_lines):
 # --- STREAMLIT UI ---
 st.set_page_config(page_title="DocGuard AI Pro", page_icon="🛡️", layout="wide")
 
-st.title("🛡️ DocGuard AI — Enterprise Suite")
-st.write("Low-level structural parser with automated threat mitigation capabilities.")
+st.title("🛡️ DocGuard AI - Enterprise Suite")
+st.write("Low-level structural parser with visual obfuscation and hyperlink threat mitigation.")
 st.markdown("---")
 
 file_buffer = st.file_uploader("Drop document here (PDF format only)", type=["pdf"])
 st.markdown("---")
 
 if file_buffer is not None:
-    # Run Advanced Scan and Extraction Pipeline
     detected_threats, doc_stats, clean_text_layers = scan_and_sanitize_pdf(file_buffer)
 
     col1, col2 = st.columns([2, 1])
@@ -132,9 +150,9 @@ if file_buffer is not None:
     with col1:
         st.subheader("🔍 Analysis Logs")
         if len(detected_threats) == 0:
-            st.success("✅ **SYSTEM SCAN CLEAN:** No structural text anomalies or hidden injection payloads found.")
+            st.success("✅ **SYSTEM SCAN CLEAN:** No text anomalies or malicious hyperlink gateways found.")
         else:
-            st.error(f"🚨 **SECURITY ALERT:** Detected {len(detected_threats)} hidden text sequence(s).")
+            st.error(f"🚨 **SECURITY ALERT:** Detected {len(detected_threats)} hidden vector threat(s).")
 
             for idx, threat in enumerate(detected_threats, 1):
                 with st.expander(f"Threat Vector #{idx} | Page {threat['page']} ({threat['reason']})", expanded=True):
@@ -144,7 +162,7 @@ if file_buffer is not None:
     with col2:
         st.subheader("📊 Session Telemetry")
         st.metric(label="Total Character Nodes Scanned", value=f"{doc_stats['total_chars']:,}")
-        st.metric(label="Total Pages Parsed", value=doc_stats['page_count'])
+        st.metric(label="Hyperlink Anchors Discovered", value=doc_stats['total_links'])
         st.metric(label="Average Document Font Size", value=f"{doc_stats['avg_font_size']:.1f} pt")
 
         st.markdown("---")
@@ -154,13 +172,10 @@ if file_buffer is not None:
             st.info("🟢 **Risk Level: LOW**\n\nDocument structure matches native presentation parameters perfectly.")
         else:
             st.error("🔴 **Risk Level: CRITICAL VULNERABILITY**")
-            st.write(
-                "Adversarial payload intercepted. Click below to download a compiled structural copy with the threat vector stripped.")
+            st.write("Adversarial payload or suspicious gateway intercepted. Download the sanitized copy below.")
 
-            # Generate the sanitized file
             patched_file = generate_patched_pdf(clean_text_layers)
 
-            # Streamlit Download Trigger
             st.download_button(
                 label="🛡️ Download Patched & Sanitized PDF",
                 data=patched_file,
