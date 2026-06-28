@@ -1,6 +1,3 @@
-Here is the condensed text, optimized to fit perfectly under LinkedIn's 2,000-character limit while retaining every piece of high-impact technical detail.
-
----
 
 Designed and developed DocGuard AI, a zero-trust document security framework engineered to neutralize indirect prompt injections within automated enterprise LLM workflows. While standard text-scrapers flatten document layouts and miss obfuscated payloads hidden in files, this system intercepts stealth threats at the raw object layer before they reach the model gateway.
 
