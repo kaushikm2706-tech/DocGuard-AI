@@ -1,0 +1,17 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Warden workspace runtime files (keep folder structure via .gitkeep only)
+warden_workspace/incoming/*
+warden_workspace/cleared/*
+warden_workspace/quarantine/*
+warden_workspace/incident_log.jsonl
+!warden_workspace/incoming/.gitkeep
+!warden_workspace/cleared/.gitkeep
+!warden_workspace/quarantine/.gitkeep
+
+# IDE
+.idea/

@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>DocGuard AI — Sentinel</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+
+<!-- ambient scanline / grid backdrop -->
+<div class="backdrop-grid"></div>
+
+<header class="topbar">
+  <div class="brand">
+    <span class="brand-mark">◈</span>
+    <span class="brand-name">DOCGUARD<span class="brand-accent">AI</span></span>
+    <span class="brand-sub">SENTINEL</span>
+  </div>
+  <div class="case-file" id="caseFile">CASE FILE #000 — AWAITING DOCUMENT</div>
+</header>
+
+<main class="layout">
+
+  <!-- ================= HERO / DROPZONE ================= -->
+  <section class="hero" id="hero">
+    <div class="hero-copy">
+      <p class="eyebrow">ZERO-TRUST DOCUMENT FORENSICS</p>
+      <h1>Every PDF is a suspect<br>until proven clean.</h1>
+      <p class="hero-desc">Sentinel inspects documents at the raw character
+      layer — the level a normal reader never sees — to expose hidden
+      instructions before they ever reach an AI system.</p>
+    </div>
+
+    <div class="dropzone" id="dropzone">
+      <div class="radar" id="radar">
+        <div class="radar-sweep"></div>
+        <div class="radar-ring r1"></div>
+        <div class="radar-ring r2"></div>
+        <div class="radar-ring r3"></div>
+        <div class="radar-core">
+          <svg width="34" height="34" viewBox="0 0 24 24" fill="none"><path d="M12 2L4 5v6c0 5 3.5 9 8 11 4.5-2 8-6 8-11V5l-8-3z" stroke="currentColor" stroke-width="1.6"/></svg>
+        </div>
+      </div>
+      <p class="dropzone-label">Drop one or more PDFs here, or</p>
+      <label class="btn-primary" for="fileInput">Select Document(s)</label>
+      <input type="file" id="fileInput" accept="application/pdf" multiple hidden />
+      <p class="dropzone-hint">Analysis runs entirely in-memory. Nothing is stored.</p>
+    </div>
+  </section>
+
+  <!-- ================= SCAN TERMINAL ================= -->
+  <section class="panel terminal-panel hidden" id="terminalPanel">
+    <div class="panel-head"><span class="dot dot-scout"></span> SCOUT AGENT — LIVE LOG</div>
+    <pre class="terminal" id="terminal"></pre>
+  </section>
+
+  <!-- ================= BATCH SUMMARY ================= -->
+  <section class="panel batch-panel hidden" id="batchPanel">
+    <div class="panel-head"><span class="dot dot-graph"></span> BATCH SCAN SUMMARY</div>
+    <div id="batchTable"></div>
+    <p class="graph-caption">Click any row to load its full evidence report below.</p>
+  </section>
+
+  <!-- ================= RESULTS ================= -->
+  <section class="results hidden" id="results">
+
+    <div class="score-row">
+      <div class="score-gauge-wrap">
+        <svg class="score-gauge" viewBox="0 0 200 120" id="gaugeSvg">
+          <path d="M20,110 A90,90 0 0,1 180,110" class="gauge-track"/>
+          <path d="M20,110 A90,90 0 0,1 180,110" class="gauge-fill" id="gaugeFill"/>
+        </svg>
+        <div class="gauge-readout">
+          <span class="gauge-number" id="scoreNumber">0</span>
+          <span class="gauge-label">THREAT SCORE</span>
+        </div>
+      </div>
+
+      <div class="telemetry-grid">
+        <div class="telemetry-cell">
+          <span class="t-label">Character Nodes Scanned</span>
+          <span class="t-value" id="statChars">—</span>
+        </div>
+        <div class="telemetry-cell">
+          <span class="t-label">Pages Inspected</span>
+          <span class="t-value" id="statPages">—</span>
+        </div>
+        <div class="telemetry-cell">
+          <span class="t-label">Hyperlink Anchors</span>
+          <span class="t-value" id="statLinks">—</span>
+        </div>
+        <div class="telemetry-cell">
+          <span class="t-label">Avg. Font Size</span>
+          <span class="t-value" id="statFont">—</span>
+        </div>
+      </div>
+
+      <div class="verdict-badge" id="verdictBadge">SCANNING…</div>
+    </div>
+
+    <!-- ================= THREAT GRAPH ================= -->
+    <div class="panel graph-panel">
+      <div class="panel-head"><span class="dot dot-graph"></span> DOCUMENT OBJECT GRAPH</div>
+      <div id="graphContainer"></div>
+      <p class="graph-caption">Every node is a scanned element. Nodes glowing
+      <span class="legend-danger">red</span> are hidden threats pulled toward
+      the central alert cluster.</p>
+    </div>
+
+    <!-- ================= EVIDENCE LIST ================= -->
+    <div class="panel evidence-panel" id="evidencePanel">
+      <div class="panel-head"><span class="dot dot-evidence"></span> EVIDENCE LOG</div>
+      <div id="evidenceList"></div>
+    </div>
+
+    <!-- ================= SANITIZE ACTION ================= -->
+    <div class="panel action-panel" id="actionPanel">
+      <div id="actionContent"></div>
+    </div>
+
+  </section>
+
+  <!-- ================= WARDEN AGENT ================= -->
+  <section class="panel warden-panel">
+    <div class="panel-head">
+      <span class="dot dot-warden" id="wardenDot"></span> WARDEN AGENT — AUTONOMOUS FOLDER SENTRY
+    </div>
+    <div class="warden-body">
+      <div class="warden-copy">
+        <p>The Warden Agent runs independently of the scanner above. Point it
+        at <code>warden_workspace/incoming/</code> and it will watch that
+        folder continuously — scanning, clearing, and quarantining new PDFs
+        the moment they arrive, with no human clicking a button.</p>
+        <button class="btn-warden" id="wardenToggle">ACTIVATE WARDEN</button>
+        <span class="warden-status" id="wardenStatusText">STANDBY</span>
+        <div class="report-export-row">
+          <a class="btn-export" id="exportJson" href="/api/warden/report/json" download>⬇ JSON REPORT</a>
+          <a class="btn-export" id="exportPdf" href="/api/warden/report/pdf" download>⬇ PDF REPORT</a>
+        </div>
+      </div>
+      <div class="warden-feed">
+        <div class="feed-head">INCIDENT FEED</div>
+        <div id="wardenFeed" class="feed-list">
+          <div class="feed-empty">No incidents yet. Activate the Warden and drop a PDF into the watch folder.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer class="footer">
+  <span>DocGuard AI · Sentinel Build</span>
+  <span class="footer-dim">Scout · Interrogator · Warden — three agents, one zero-trust pipeline</span>
+</footer>
+
+<!-- ================= REPLAY MODAL ================= -->
+<div class="modal-backdrop hidden" id="replayModal">
+  <div class="modal">
+    <button class="modal-close" id="replayClose">✕</button>
+    <h3 class="modal-title">ATTACK REPLAY SIMULATION</h3>
+    <p class="modal-sub">A sandboxed dramatization — no real AI system is involved — showing what would happen if this hidden payload reached an unprotected assistant.</p>
+    <div class="replay-split">
+      <div class="replay-side replay-bad">
+        <div class="replay-tag">WITHOUT SENTINEL</div>
+        <div class="replay-chat">
+          <div class="chat-bubble chat-user">Assistant, please summarize this document.</div>
+          <div class="chat-bubble chat-ai" id="replayAiLine">…</div>
+        </div>
+        <div class="replay-consequence" id="replayConsequence"></div>
+      </div>
+      <div class="replay-side replay-good">
+        <div class="replay-tag">WITH SENTINEL</div>
+        <div class="replay-chat">
+          <div class="chat-bubble chat-user">Assistant, please summarize this document.</div>
+          <div class="chat-bubble chat-ai chat-safe">I found a hidden instruction embedded in this file and blocked it before acting on anything. Here's the legitimate content only:</div>
+        </div>
+        <div class="replay-consequence replay-safe">Threat neutralized. Original intent never reached the model.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>
