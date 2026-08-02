@@ -247,6 +247,18 @@ body{
   padding: 0 14px 8px; font-family: var(--font-mono); font-size: 10px; letter-spacing:1px; color: var(--text-dim);
 }
 
+/* ---------- simulate-drop control ---------- */
+.simulate-drop-row{ margin-top: 14px; display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+.btn-simulate{
+  cursor:pointer; display:inline-block;
+  font-family: var(--font-mono); font-size: 11.5px; letter-spacing:.5px;
+  background: var(--cyan); color: #0e1116; font-weight:700;
+  padding: 8px 14px; border-radius: 5px;
+  transition: transform .15s ease;
+}
+.btn-simulate:hover{ transform: translateY(-1px); }
+.simulate-hint{ font-size: 11px; color: var(--text-dim); font-family: var(--font-mono); max-width: 260px; }
+
 /* ---------- report export buttons ---------- */
 .report-export-row{ display:flex; gap:10px; margin-top:14px; }
 .btn-export{
@@ -255,6 +267,12 @@ body{
   transition: background .15s ease;
 }
 .btn-export:hover{ background: rgba(232,163,61,0.08); }
+.btn-clear{
+  font-family: var(--font-mono); font-size: 11px; letter-spacing:.5px; cursor:pointer;
+  background: none; color: var(--text-dim); border: 1px solid var(--hairline); border-radius: 5px; padding: 8px 12px;
+  transition: color .15s ease, border-color .15s ease;
+}
+.btn-clear:hover{ color: var(--red); border-color: var(--red-dim); }
 
 /* ---------- warden panel ---------- */
 .warden-body{ display:grid; grid-template-columns: 1fr 1fr; gap: 0; }

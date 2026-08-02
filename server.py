@@ -23,7 +23,7 @@ from agents.interrogator import interrogate
 from agents.remediator import generate_patched_pdf
 from agents.replay import simulate_naive_compliance
 from agents.report import generate_incident_report_pdf
-from agents.warden import Warden, LOG_PATH, WATCH_DIR
+from agents.warden import Warden, LOG_PATH, WATCH_DIR, clear_workspace
 
 app = Flask(__name__)
 
@@ -163,6 +163,43 @@ def api_sanitize():
     )
 
 
+@app.route("/api/warden/simulate-drop", methods=["POST"])
+def warden_simulate_drop():
+    """
+    Lets a person trigger the Warden Agent from the browser instead of
+    needing direct file-system/shell access to the watch folder (useful
+    for a deployed instance). This just places the uploaded file into
+    the real watch folder — the Warden's own file-system watcher is what
+    actually detects and processes it, exactly as it would for a file
+    dropped in any other way. This keeps the "autonomous agent" behavior
+    genuine: this endpoint doesn't scan anything itself.
+    """
+    if "file" not in request.files:
+        return jsonify({"error": "No file uploaded"}), 400
+    if not _warden.is_running:
+        return jsonify({"error": "Activate the Warden Agent first, then simulate a drop."}), 400
+
+    file = request.files["file"]
+    safe_name = os.path.basename(file.filename)
+    dest_path = os.path.join(WATCH_DIR, safe_name)
+
+    # If a same-named file already exists here, we just overwrite it in
+    # place. The Warden's watcher listens for BOTH "created" and
+    # "modified" events specifically to handle this case — so a fresh
+    # scan still fires either way, without us needing to delete anything
+    # first (which can fail on Windows if the old file is locked by
+    # another program, like a PDF viewer or File Explorer preview).
+    try:
+        file.save(dest_path)
+    except PermissionError:
+        return jsonify({
+            "error": "That file is currently open in another program (e.g. a PDF "
+                     "viewer or File Explorer preview). Close it and try again."
+        }), 409
+
+    return jsonify({"saved": True, "filename": safe_name})
+
+
 @app.route("/api/warden/start", methods=["POST"])
 def warden_start():
     _warden.start()
@@ -195,6 +232,12 @@ def _load_log_entries():
 def warden_log():
     entries = _load_log_entries()
     return jsonify({"entries": entries[-50:]})  # last 50 events
+
+
+@app.route("/api/warden/clear", methods=["POST"])
+def warden_clear():
+    clear_workspace()
+    return jsonify({"cleared": True})
 
 
 @app.route("/api/warden/report/json")

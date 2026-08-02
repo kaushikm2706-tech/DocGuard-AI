@@ -45,6 +45,29 @@ for _dir in (WATCH_DIR, CLEARED_DIR, QUARANTINE_DIR):
     os.makedirs(_dir, exist_ok=True)
 
 
+def clear_workspace():
+    """
+    Wipes the incident log and any files that have piled up in cleared/
+    and quarantine/ from previous runs — a fresh start for a demo,
+    without touching whatever's currently sitting in incoming/ waiting
+    to be processed. .gitkeep placeholders are preserved so the folder
+    structure survives.
+    """
+    if os.path.exists(LOG_PATH):
+        os.remove(LOG_PATH)
+
+    for _dir in (CLEARED_DIR, QUARANTINE_DIR):
+        for name in os.listdir(_dir):
+            if name == ".gitkeep":
+                continue
+            path = os.path.join(_dir, name)
+            try:
+                if os.path.isfile(path):
+                    os.remove(path)
+            except OSError:
+                pass  # best-effort; a locked file here shouldn't block the rest
+
+
 def _log_incident(entry: dict):
     entry["timestamp"] = datetime.now(timezone.utc).isoformat()
     with open(LOG_PATH, "a") as f:
@@ -91,13 +114,29 @@ def _process_pdf(path: str, on_event=None):
 class _PDFDropHandler(FileSystemEventHandler):
     def __init__(self, on_event=None):
         self.on_event = on_event
+        self._processing = set()  # guards against double-processing one path
+
+    def _handle(self, path):
+        if path in self._processing or not path.lower().endswith(".pdf"):
+            return
+        self._processing.add(path)
+        try:
+            time.sleep(0.5)  # let the file finish copying before we read it
+            _process_pdf(path, self.on_event)
+        finally:
+            self._processing.discard(path)
 
     def on_created(self, event):
-        if event.is_directory or not event.src_path.lower().endswith(".pdf"):
+        if event.is_directory:
             return
-        # Small delay so the file finishes copying before we read it.
-        time.sleep(0.5)
-        _process_pdf(event.src_path, self.on_event)
+        self._handle(event.src_path)
+
+    def on_modified(self, event):
+        # Safety net: some filesystems report overwriting an existing
+        # same-named file as a "modified" event rather than "created".
+        if event.is_directory:
+            return
+        self._handle(event.src_path)
 
 
 class Warden:

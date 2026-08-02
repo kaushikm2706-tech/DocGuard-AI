@@ -137,9 +137,17 @@
         the moment they arrive, with no human clicking a button.</p>
         <button class="btn-warden" id="wardenToggle">ACTIVATE WARDEN</button>
         <span class="warden-status" id="wardenStatusText">STANDBY</span>
+
+        <div class="simulate-drop-row">
+          <label class="btn-simulate" for="simulateDropInput">📥 SIMULATE A DROP</label>
+          <input type="file" id="simulateDropInput" accept="application/pdf" hidden />
+          <span class="simulate-hint">Uploads a PDF into the real watch folder — the Warden detects it on its own.</span>
+        </div>
+
         <div class="report-export-row">
           <a class="btn-export" id="exportJson" href="/api/warden/report/json" download>⬇ JSON REPORT</a>
           <a class="btn-export" id="exportPdf" href="/api/warden/report/pdf" download>⬇ PDF REPORT</a>
+          <button class="btn-clear" id="clearLogBtn">🗑 CLEAR LOG</button>
         </div>
       </div>
       <div class="warden-feed">

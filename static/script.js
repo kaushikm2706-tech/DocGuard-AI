@@ -408,3 +408,37 @@ function escapeHtml(str) {
 
 // check warden status on load in case it's already running server-side
 fetch('/api/warden/status').then(r => r.json()).then(d => setWardenUI(d.running));
+
+// ---------- simulate-drop control ----------
+const simulateDropInput = document.getElementById('simulateDropInput');
+simulateDropInput.addEventListener('change', async e => {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  const formData = new FormData();
+  formData.append('file', file);
+
+  try {
+    const res = await fetch('/api/warden/simulate-drop', { method: 'POST', body: formData });
+    const data = await res.json();
+    if (data.error) {
+      alert(data.error);
+    }
+    // On success, the Warden's own watcher picks this up within a couple
+    // seconds — the existing pollWardenLog() interval will show it in
+    // the Incident Feed automatically, no extra handling needed here.
+  } catch (err) {
+    alert('Upload failed: ' + err);
+  } finally {
+    simulateDropInput.value = ''; // allow re-selecting the same file again
+  }
+});
+
+// ---------- clear log control ----------
+document.getElementById('clearLogBtn').addEventListener('click', async () => {
+  if (!confirm('Clear the incident log and all cleared/quarantined files? This cannot be undone.')) {
+    return;
+  }
+  await fetch('/api/warden/clear', { method: 'POST' });
+  wardenFeed.innerHTML = '<div class="feed-empty">No incidents yet. Activate the Warden and drop a PDF into the watch folder.</div>';
+});
